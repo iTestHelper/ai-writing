@@ -39,7 +39,7 @@ export default function RootLayout({
         >
           <HeaderNav />
           {children}
-          <Toaster />
+          <Toaster richColors />
         </ThemeProvider>
       </body>
     </html>
