@@ -30,6 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { aiProviders, type AIProviderId } from "@/lib/ai-providers";
 import { countWords } from "@/lib/utils";
+import BidirectionalBeam from "@/components/special-effects/animated-beam";
 import React from "react";
 
 type Correction = {
@@ -49,17 +51,55 @@ type Correction = {
 };
 
 type ReviseResponse = {
-  revisedEssay: string;
+  correctedVersion?: string; // Email task: corrected version
+  revisedHighQualityVersion?: string; // Email task: revised high-quality version
+  revisedEssay?: string; // Academic task: revised essay (backward compatibility)
   feedback: {
-    estimatedScore: number;
+    // Email task new format
+    scores?: {
+      elaboration: number; // 0.0-7.5
+      responseStructure: number; // 0.0-7.5
+      socialConventions: number; // 0.0-7.5
+      syntacticGrammaticalEffectiveness: number; // 0.0-7.5
+      finalScore: number; // Sum out of 30
+    };
+    sectionB?: {
+      analysis: string;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    sectionC?: {
+      analysis: string;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    sectionD?: {
+      analysis: string;
+      problematicPhrases?: Array<{
+        original: string;
+        improved: string;
+        reason: string;
+      }>;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    sectionE?: {
+      grammarErrors: string[];
+      punctuationIssues: string[];
+      wordChoiceIssues: string[];
+      toneIssues: string[];
+      detailedCorrections: Correction[];
+    };
+    // Academic task old format (backward compatibility)
+    estimatedScore?: number;
     grammarCorrections?: string[];
     wordChoiceImprovements?: string[];
     typoCorrections?: string[];
     punctuationCorrections?: string[];
     detailedCorrections?: Correction[];
-    strengths: string[];
-    improvements: string[];
-    summary: string;
+    strengths?: string[];
+    improvements?: string[];
+    summary?: string;
   };
 };
 
@@ -755,7 +795,6 @@ Score 0 - The response is blank, rejects the topic, is not in English, is entire
             <div className="flex h-full flex-col md:flex-row">
               {/* Left column: Scenario */}
               <div className="flex w-full flex-col gap-y-4 rounded-xl border border-border p-4 md:w-[40%]">
-                <h2 className="text-base font-semibold">Scenario</h2>
                 <div className="flex-1 overflow-y-auto text-sm leading-relaxed whitespace-break-spaces">
                   {scenario || (
                     <p className="text-muted-foreground">
@@ -872,62 +911,85 @@ Score 0 - The response is blank, rejects the topic, is not in English, is entire
           </DialogContent>
         </Dialog>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        {/* Loading Modal with BidirectionalBeam */}
+        <Dialog open={loading} onOpenChange={() => {}}>
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-md border-0 bg-card p-0 shadow-none"
+          >
+            <DialogHeader className="sr-only">
+              <DialogTitle className="sr-only">Loading...</DialogTitle>
+              <DialogDescription className="sr-only">
+                Please wait while we process your request.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center justify-center rounded-lg p-8">
+              <BidirectionalBeam />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <section className="grid gap-6">
           <form
             onSubmit={handleSubmit}
-            className="flex flex-col gap-4 rounded-2xl p-4 shadow-sm"
+            className="flex flex-col gap-4 border border-border rounded-2xl p-4 shadow-sm"
           >
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Scenario
-              </Label>
-              <Textarea
-                value={scenario}
-                onChange={(e) => setScenario(e.target.value)}
-                placeholder="Provide the scenario..."
-                className="min-h-[120px] text-sm"
-              />
-            </div>
-
-            <div className="grid gap-3 text-sm md:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
+            <div className="flex gap-4">
+              <div className="w-1/2 flex flex-col gap-1.5">
                 <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  To
+                  Scenario
                 </Label>
-                <Input
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  placeholder=""
-                  className="text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Subject
-                </Label>
-                <Input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder=""
-                  className="text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Your Response</Label>
-              </div>
-              <div className="relative">
                 <Textarea
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  placeholder="Write your email here..."
-                  className="h-96 text-sm font-mono"
+                  value={scenario}
+                  onChange={(e) => setScenario(e.target.value)}
+                  placeholder="Provide the scenario..."
+                  className="min-h-96 h-full text-sm resize-none"
                 />
               </div>
-            </div>
 
+              <div className="w-1/2 flex flex-col gap-1.5">
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      To
+                    </Label>
+                    <Input
+                      value={recipient}
+                      onChange={(e) => setRecipient(e.target.value)}
+                      placeholder=""
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Subject
+                    </Label>
+                    <Input
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      placeholder=""
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Response
+                    </Label>
+                  </div>
+                  <div className="relative">
+                    <Textarea
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                      placeholder="Write your email here..."
+                      className="h-96 text-sm resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="flex items-center justify-end gap-3 pt-1">
               <Button
                 type="button"
@@ -954,75 +1016,355 @@ Score 0 - The response is blank, rejects the topic, is not in English, is entire
           </form>
 
           <section className="flex flex-col gap-4">
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide">
-                AI‑revised email
-              </h2>
-              <div className="mt-2 h-px bg-linear-to-r from-primary/40 via-border to-transparent" />
-              {result ? (
-                <TooltipProvider>
-                  <article className="mt-3 max-h-[340px] space-y-3 overflow-y-auto pr-1 text-sm leading-relaxed">
-                    {highlightCorrections(
-                      result.revisedEssay,
-                      result.feedback.detailedCorrections || []
-                    ).map((para, idx) => (
-                      <p key={idx} className="whitespace-pre-line">
-                        {para}
+            {result ? (
+              <>
+                {/* Feedback Sections */}
+                <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide">
+                      Detailed Feedback
+                    </h2>
+                    {result.feedback.scores && (
+                      <p className="text-lg font-bold text-primary">
+                        {result.feedback.scores.finalScore.toFixed(1)}/30
                       </p>
-                    ))}
-                  </article>
-                </TooltipProvider>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  The improved version of your email will appear here after you
-                  submit it.
-                </p>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide">
-                Feedback on clarity & tone
-              </h2>
-              <div className="mt-2 h-px bg-linear-to-r from-primary/30 via-border to-transparent" />
-              {result ? (
-                <div className="mt-3 space-y-3 text-sm">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Overall comment
-                  </p>
-                  <p className="text-sm text-foreground">
-                    {result.feedback.summary}
-                  </p>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
-                        What you did well
-                      </h3>
-                      <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                        {result.feedback.strengths.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
-                        How to improve
-                      </h3>
-                      <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                        {result.feedback.improvements.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
+                    )}
                   </div>
+                  <div className="mt-2 h-px bg-linear-to-r from-primary/40 via-border to-transparent" />
+                  <Tabs defaultValue="elaboration" className="mt-3">
+                    <TabsList className="grid w-full h-22 grid-cols-4">
+                      <TabsTrigger
+                        className="flex flex-col"
+                        value="elaboration"
+                      >
+                        Elaboration
+                        {result.feedback.scores && (
+                          <span className="text-xl font-semibold">
+                            {result.feedback.scores.elaboration.toFixed(1)}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger className="flex flex-col" value="structure">
+                        Structure
+                        {result.feedback.scores && (
+                          <span className="text-xl font-semibold">
+                            {result.feedback.scores.responseStructure.toFixed(
+                              1
+                            )}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        className="flex flex-col"
+                        value="conventions"
+                      >
+                        Conventions
+                        {result.feedback.scores && (
+                          <span className="text-xl font-semibold">
+                            {result.feedback.scores.socialConventions.toFixed(
+                              1
+                            )}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger className="flex flex-col" value="grammar">
+                        Grammar
+                        {result.feedback.scores && (
+                          <span className="text-xl font-semibold">
+                            {result.feedback.scores.syntacticGrammaticalEffectiveness.toFixed(
+                              1
+                            )}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent
+                      value="elaboration"
+                      className="mt-3 space-y-3 text-sm"
+                    >
+                      {result.feedback.sectionB ? (
+                        <>
+                          <div className="whitespace-pre-line text-foreground">
+                            {result.feedback.sectionB.analysis}
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
+                                Strengths
+                              </h3>
+                              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionB.strengths.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                                Weaknesses
+                              </h3>
+                              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionB.weaknesses.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No elaboration feedback available.
+                        </p>
+                      )}
+                    </TabsContent>
+                    <TabsContent
+                      value="structure"
+                      className="mt-3 space-y-3 text-sm"
+                    >
+                      {result.feedback.sectionC ? (
+                        <>
+                          <div className="whitespace-pre-line text-foreground">
+                            {result.feedback.sectionC.analysis}
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
+                                Strengths
+                              </h3>
+                              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionC.strengths.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                                Weaknesses
+                              </h3>
+                              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionC.weaknesses.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No structure feedback available.
+                        </p>
+                      )}
+                    </TabsContent>
+                    <TabsContent
+                      value="conventions"
+                      className="mt-3 space-y-3 text-sm"
+                    >
+                      {result.feedback.sectionD ? (
+                        <>
+                          <div className="whitespace-pre-line text-foreground">
+                            {result.feedback.sectionD.analysis}
+                          </div>
+                          {result.feedback.sectionD.problematicPhrases &&
+                            result.feedback.sectionD.problematicPhrases.length >
+                              0 && (
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500 mb-2">
+                                  Problematic Phrases
+                                </h3>
+                                <div className="space-y-2">
+                                  {result.feedback.sectionD.problematicPhrases.map(
+                                    (phrase, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="border-l-2 border-amber-500 pl-3"
+                                      >
+                                        <p className="text-xs text-muted-foreground">
+                                          <span className="font-medium">
+                                            Original:
+                                          </span>{" "}
+                                          {phrase.original}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          <span className="font-medium">
+                                            Improved:
+                                          </span>{" "}
+                                          {phrase.improved}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground italic">
+                                          {phrase.reason}
+                                        </p>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
+                                Strengths
+                              </h3>
+                              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionD.strengths.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                                Weaknesses
+                              </h3>
+                              <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionD.weaknesses.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No conventions feedback available.
+                        </p>
+                      )}
+                    </TabsContent>
+                    <TabsContent
+                      value="grammar"
+                      className="mt-3 space-y-3 text-sm"
+                    >
+                      {result.feedback.sectionE ? (
+                        <div className="space-y-4">
+                          {result.feedback.sectionE.grammarErrors.length >
+                            0 && (
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500 mb-2">
+                                Grammar Errors
+                              </h3>
+                              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionE.grammarErrors.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                          {result.feedback.sectionE.punctuationIssues.length >
+                            0 && (
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500 mb-2">
+                                Punctuation Issues
+                              </h3>
+                              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionE.punctuationIssues.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                          {result.feedback.sectionE.wordChoiceIssues.length >
+                            0 && (
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500 mb-2">
+                                Word Choice Issues
+                              </h3>
+                              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionE.wordChoiceIssues.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                          {result.feedback.sectionE.toneIssues.length > 0 && (
+                            <div>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500 mb-2">
+                                Tone Issues
+                              </h3>
+                              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                {result.feedback.sectionE.toneIssues.map(
+                                  (item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No grammar feedback available.
+                        </p>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </div>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  You will see feedback on clarity, politeness, and tone here
-                  after you submit an email.
+
+                {/* Revised Versions */}
+                <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide">
+                    Revised Versions
+                  </h2>
+                  <div className="mt-2 h-px bg-linear-to-r from-primary/40 via-border to-transparent" />
+                  <Tabs defaultValue="corrected" className="mt-3">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="corrected">
+                        Corrected Version
+                      </TabsTrigger>
+                      <TabsTrigger value="revised">
+                        High-Quality Version
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="corrected" className="mt-3">
+                      <TooltipProvider>
+                        <article className="max-h-[400px] space-y-3 overflow-y-auto pr-1 text-sm leading-relaxed">
+                          {highlightCorrections(
+                            result.correctedVersion ||
+                              result.revisedEssay ||
+                              "",
+                            result.feedback.sectionE?.detailedCorrections ||
+                              result.feedback.detailedCorrections ||
+                              []
+                          ).map((para, idx) => (
+                            <p key={idx} className="whitespace-pre-line">
+                              {para}
+                            </p>
+                          ))}
+                        </article>
+                      </TooltipProvider>
+                    </TabsContent>
+                    <TabsContent value="revised" className="mt-3">
+                      <article className="max-h-[400px] space-y-3 overflow-y-auto pr-1 text-sm leading-relaxed whitespace-pre-line">
+                        {result.revisedHighQualityVersion ||
+                          result.correctedVersion ||
+                          result.revisedEssay ||
+                          ""}
+                      </article>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-sm text-muted-foreground">
+                  Submit your email to see detailed feedback and scores.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </section>
         </section>
       </main>
