@@ -21,17 +21,48 @@ type Correction = {
 };
 
 type ReviseResponse = {
-  revisedEssay: string;
+  correctedVersion?: string; // Academic task: corrected version (Section D)
+  revisedVersion?: string; // Academic task: revised version (Section E)
+  revisedEssay?: string; // Backward compatibility: revised essay
   feedback: {
-    estimatedScore: number;
+    // Academic task new format
+    scores?: {
+      contributionReasoning: number; // 0-12
+      taskResponseStructure: number; // 0-8
+      grammarCorrectness: number; // 0-5
+      wordChoiceDiversity: number; // 0-5
+      finalScore: number; // Sum out of 30
+    };
+    sectionB?: {
+      analysis: string;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    sectionC?: {
+      analysis: string;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    sectionD?: {
+      analysis: string;
+      examples: string[];
+      detailedCorrections: Correction[];
+    };
+    sectionE?: {
+      analysis: string;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    // Backward compatibility (old format)
+    estimatedScore?: number;
     grammarCorrections?: string[];
     wordChoiceImprovements?: string[];
     typoCorrections?: string[];
     punctuationCorrections?: string[];
     detailedCorrections?: Correction[];
-    strengths: string[];
-    improvements: string[];
-    summary: string;
+    strengths?: string[];
+    improvements?: string[];
+    summary?: string;
   };
 };
 
@@ -80,6 +111,7 @@ const studentImage: Record<"Andrew" | "Paul" | "Claire" | "Kelly", string> = {
 
 import { aiProviders, type AIProviderId } from "@/lib/ai-providers";
 import { countWords } from "@/lib/utils";
+import BidirectionalBeam from "@/components/special-effects/animated-beam";
 
 const SETTINGS_STORAGE_KEY = "academic-ai-settings";
 const FORM_DATA_STORAGE_KEY = "academic-form-data";
@@ -1000,6 +1032,24 @@ Score 0 - The response is blank, rejects the topic, is not in English, is entire
           </DialogContent>
         </Dialog>
 
+        {/* Loading Modal with BidirectionalBeam */}
+        <Dialog open={loading} onOpenChange={() => {}}>
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-md border-0 bg-card p-0 shadow-none"
+          >
+            <DialogHeader className="sr-only">
+              <DialogTitle className="sr-only">Loading...</DialogTitle>
+              <DialogDescription className="sr-only">
+                Please wait while we process your request.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center justify-center rounded-lg p-8">
+              <BidirectionalBeam />
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <section className="flex flex-col gap-4">
           <form
             onSubmit={handleSubmit}
@@ -1159,192 +1209,288 @@ Score 0 - The response is blank, rejects the topic, is not in English, is entire
         </section>
 
         <section className="flex flex-col gap-4">
-          <Card className="gap-4!">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold uppercase tracking-wide">
-                AI‑revised response
-              </CardTitle>
-              <CardDescription>
-                The rewritten version of the candidate&apos;s response based on
-                your current prompt and model configuration.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-px bg-linear-to-r from-primary/40 via-border to-transparent" />
-              {result ? (
-                <TooltipProvider>
-                  <article className="mt-3 max-h-[340px] space-y-3 overflow-y-auto pr-1 text-sm leading-relaxed">
-                    {highlightCorrections(
-                      result.revisedEssay,
-                      result.feedback.detailedCorrections || []
-                    ).map((para, idx) => (
-                      <p key={idx} className="whitespace-pre-line">
-                        {para}
-                      </p>
-                    ))}
-                  </article>
-                </TooltipProvider>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  The improved version of your response will appear here after
-                  you submit it.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <section className="flex flex-col gap-4">
+            {result ? (
+              <>
+                {/* Detailed Feedback */}
+                {result.feedback.scores ? (
+                  <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide">
+                        Detailed Feedback
+                      </h2>
+                      {result.feedback.scores && (
+                        <p className="text-lg font-bold text-primary">
+                          {result.feedback.scores.finalScore.toFixed(1)}/30
+                        </p>
+                      )}
+                    </div>
+                    <div className="mt-2 h-px bg-linear-to-r from-primary/40 via-border to-transparent" />
+                    <Tabs defaultValue="contribution" className="mt-3">
+                      <TabsList className="grid w-full h-22 grid-cols-4">
+                        <TabsTrigger
+                          className="flex flex-col"
+                          value="contribution"
+                        >
+                          Contribution
+                          {result.feedback.scores && (
+                            <span className="text-xl font-semibold">
+                              {result.feedback.scores.contributionReasoning.toFixed(
+                                0
+                              )}
+                            </span>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger className="flex flex-col" value="task">
+                          Task Response
+                          {result.feedback.scores && (
+                            <span className="text-xl font-semibold">
+                              {result.feedback.scores.taskResponseStructure.toFixed(
+                                0
+                              )}
+                            </span>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger className="flex flex-col" value="grammar">
+                          Grammar
+                          {result.feedback.scores && (
+                            <span className="text-xl font-semibold">
+                              {result.feedback.scores.grammarCorrectness.toFixed(
+                                0
+                              )}
+                            </span>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger
+                          className="flex flex-col"
+                          value="wordchoice"
+                        >
+                          Word Choice
+                          {result.feedback.scores && (
+                            <span className="text-xl font-semibold">
+                              {result.feedback.scores.wordChoiceDiversity.toFixed(
+                                0
+                              )}
+                            </span>
+                          )}
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent
+                        value="contribution"
+                        className="mt-3 space-y-3 text-sm"
+                      >
+                        {result.feedback.sectionB ? (
+                          <>
+                            <div className="whitespace-pre-line text-foreground">
+                              {result.feedback.sectionB.analysis}
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
+                                  Strengths
+                                </h3>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionB.strengths.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                                  Weaknesses
+                                </h3>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionB.weaknesses.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground">
+                            No contribution feedback available.
+                          </p>
+                        )}
+                      </TabsContent>
+                      <TabsContent
+                        value="task"
+                        className="mt-3 space-y-3 text-sm"
+                      >
+                        {result.feedback.sectionC ? (
+                          <>
+                            <div className="whitespace-pre-line text-foreground">
+                              {result.feedback.sectionC.analysis}
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
+                                  Strengths
+                                </h3>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionC.strengths.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                                  Weaknesses
+                                </h3>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionC.weaknesses.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground">
+                            No task response feedback available.
+                          </p>
+                        )}
+                      </TabsContent>
+                      <TabsContent
+                        value="grammar"
+                        className="mt-3 space-y-3 text-sm"
+                      >
+                        {result.feedback.sectionD ? (
+                          <>
+                            <div className="whitespace-pre-line text-foreground">
+                              {result.feedback.sectionD.analysis}
+                            </div>
+                            {result.feedback.sectionD.examples.length > 0 && (
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500 mb-2">
+                                  Examples
+                                </h3>
+                                <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionD.examples.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground">
+                            No grammar feedback available.
+                          </p>
+                        )}
+                      </TabsContent>
+                      <TabsContent
+                        value="wordchoice"
+                        className="mt-3 space-y-3 text-sm"
+                      >
+                        {result.feedback.sectionE ? (
+                          <>
+                            <div className="whitespace-pre-line text-foreground">
+                              {result.feedback.sectionE.analysis}
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
+                                  Strengths
+                                </h3>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionE.strengths.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                                  Weaknesses
+                                </h3>
+                                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
+                                  {result.feedback.sectionE.weaknesses.map(
+                                    (item, idx) => (
+                                      <li key={idx}>{item}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground">
+                            No word choice feedback available.
+                          </p>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                ) : null}
 
-          <Card className="gap-4!">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold uppercase tracking-wide">
-                Model feedback
-              </CardTitle>
-              <CardDescription>
-                Detailed corrections and feedback from the model.
-              </CardDescription>
-              <CardAction>
-                {result && (
-                  <div className="text-right">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Overall Score
-                    </div>
-                    <div className="text-2xl font-bold text-primary">
-                      {result.feedback.estimatedScore}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        /5
-                      </span>
-                    </div>
+                {/* Revised Versions */}
+                {(result.correctedVersion ||
+                  result.revisedVersion ||
+                  result.revisedEssay) && (
+                  <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide">
+                      Revised Versions
+                    </h2>
+                    <div className="mt-2 h-px bg-linear-to-r from-primary/40 via-border to-transparent" />
+                    <Tabs defaultValue="corrected" className="mt-3">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="corrected">
+                          Corrected Version
+                        </TabsTrigger>
+                        <TabsTrigger value="revised">
+                          Revised Version
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="corrected" className="mt-3">
+                        <TooltipProvider>
+                          <article className="max-h-[400px] space-y-3 overflow-y-auto pr-1 text-sm leading-relaxed">
+                            {highlightCorrections(
+                              result.correctedVersion ||
+                                result.revisedEssay ||
+                                "",
+                              result.feedback.sectionD?.detailedCorrections ||
+                                result.feedback.detailedCorrections ||
+                                []
+                            ).map((para, idx) => (
+                              <p key={idx} className="whitespace-pre-line">
+                                {para}
+                              </p>
+                            ))}
+                          </article>
+                        </TooltipProvider>
+                      </TabsContent>
+                      <TabsContent value="revised" className="mt-3">
+                        <article className="max-h-[400px] space-y-3 overflow-y-auto pr-1 text-sm leading-relaxed whitespace-pre-line">
+                          {result.revisedVersion ||
+                            result.correctedVersion ||
+                            result.revisedEssay ||
+                            ""}
+                        </article>
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 )}
-              </CardAction>
-            </CardHeader>
-            <CardContent>
-              <div className="h-px bg-linear-to-r from-primary/30 via-border to-transparent" />
-              {result ? (
-                <Tabs defaultValue="summary" className="mt-3">
-                  <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="summary" className="text-xs">
-                      Summary
-                    </TabsTrigger>
-                    <TabsTrigger value="grammar" className="text-xs">
-                      Grammar
-                    </TabsTrigger>
-                    <TabsTrigger value="wordchoice" className="text-xs">
-                      Word Choice
-                    </TabsTrigger>
-                    <TabsTrigger value="typos" className="text-xs">
-                      Typos
-                    </TabsTrigger>
-                    <TabsTrigger value="punctuation" className="text-xs">
-                      Punctuation
-                    </TabsTrigger>
-                  </TabsList>
-                  <div className="h-80 overflow-y-auto">
-                    <TabsContent
-                      value="summary"
-                      className="mt-3 space-y-3 text-sm"
-                    >
-                      <p className="text-sm text-foreground">
-                        {result.feedback.summary}
-                      </p>
-
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-500">
-                            Strengths
-                          </h3>
-                          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                            {result.feedback.strengths.map((item, idx) => (
-                              <li key={idx}>{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-500">
-                            Improvements
-                          </h3>
-                          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                            {result.feedback.improvements.map((item, idx) => (
-                              <li key={idx}>{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="grammar" className="mt-3">
-                      {result.feedback.grammarCorrections &&
-                      result.feedback.grammarCorrections.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                          {result.feedback.grammarCorrections.map(
-                            (item, idx) => (
-                              <li key={idx}>{item}</li>
-                            )
-                          )}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-muted-foreground md:text-sm">
-                          No grammar corrections to display.
-                        </p>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="wordchoice" className="mt-3">
-                      {result.feedback.wordChoiceImprovements &&
-                      result.feedback.wordChoiceImprovements.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                          {result.feedback.wordChoiceImprovements.map(
-                            (item, idx) => (
-                              <li key={idx}>{item}</li>
-                            )
-                          )}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-muted-foreground md:text-sm">
-                          No word choice improvements to display.
-                        </p>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="typos" className="mt-3">
-                      {result.feedback.typoCorrections &&
-                      result.feedback.typoCorrections.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                          {result.feedback.typoCorrections.map((item, idx) => (
-                            <li key={idx}>{item}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-muted-foreground md:text-sm">
-                          No typo corrections to display.
-                        </p>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="punctuation" className="mt-3">
-                      {result.feedback.punctuationCorrections &&
-                      result.feedback.punctuationCorrections.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground md:text-sm">
-                          {result.feedback.punctuationCorrections.map(
-                            (item, idx) => (
-                              <li key={idx}>{item}</li>
-                            )
-                          )}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-muted-foreground md:text-sm">
-                          No punctuation corrections to display.
-                        </p>
-                      )}
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  You will see model feedback here after you submit a response.
+              </>
+            ) : (
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-sm text-muted-foreground">
+                  Submit your response to see detailed feedback and scores.
                 </p>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </section>
         </section>
       </main>
     </div>
